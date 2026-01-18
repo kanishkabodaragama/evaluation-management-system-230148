@@ -9,6 +9,7 @@ const sessionsController = require('../controllers/sessions');
 const assignmentsController = require('../controllers/assignments');
 const submissionsController = require('../controllers/submissions');
 const scoresController = require('../controllers/scores');
+const analyticsController = require('../controllers/analytics');
 
 const router = express.Router();
 
@@ -27,6 +28,8 @@ const router = express.Router();
  *     description: Reviewer submissions for an employee in a session
  *   - name: Scores
  *     description: Per-criterion scores for a submission
+ *   - name: Analytics
+ *     description: Admin-only analytics + CSV exports
  */
 
 /**
@@ -114,6 +117,56 @@ const router = express.Router();
  *         comment: { type: string, nullable: true }
  *         created_at: { type: string, format: date-time }
  *         updated_at: { type: string, format: date-time }
+ *     SessionAnalyticsSummary:
+ *       type: object
+ *       properties:
+ *         session:
+ *           $ref: '#/components/schemas/ReviewSession'
+ *         counts:
+ *           type: object
+ *           properties:
+ *             session_id: { type: string, format: uuid }
+ *             assignments_count: { type: integer }
+ *             submissions_count: { type: integer }
+ *             submissions_submitted_count: { type: integer }
+ *             assignments_completed_count: { type: integer }
+ *             assignment_completion_rate_pct: { type: number, description: "Percentage from 0-100" }
+ *         averages:
+ *           type: object
+ *           properties:
+ *             avg_overall_score: { type: number, nullable: true }
+ *             submissions_with_any_score_count: { type: integer }
+ *         per_criterion:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               criterion_id: { type: string, format: uuid }
+ *               criterion_name: { type: string }
+ *               weight: { type: number }
+ *               avg_score_value: { type: number, nullable: true }
+ *               score_count: { type: integer }
+ *     SessionEmployeeAnalyticsRow:
+ *       type: object
+ *       properties:
+ *         employee_id: { type: string, format: uuid }
+ *         employee_code: { type: string, nullable: true }
+ *         full_name: { type: string }
+ *         email: { type: string, nullable: true }
+ *         team: { type: string, nullable: true }
+ *         assignments_count: { type: integer }
+ *         submissions_count: { type: integer }
+ *         submissions_submitted_count: { type: integer }
+ *         avg_overall_score: { type: number, nullable: true }
+ *     SessionReviewerAnalyticsRow:
+ *       type: object
+ *       properties:
+ *         reviewer_user_id: { type: string, format: uuid }
+ *         reviewer_email: { type: string, nullable: true }
+ *         assignments_count: { type: integer }
+ *         assignments_completed_count: { type: integer }
+ *         assignment_completion_rate_pct: { type: number }
+ *         submissions_submitted_count: { type: integer }
  *   parameters:
  *     LimitParam:
  *       in: query
@@ -223,5 +276,159 @@ router.get('/scores/:id', ...authed, requireReviewer(), asyncHandler(scoresContr
 router.post('/scores', ...authed, requireReviewer(), asyncHandler(scoresController.create.bind(scoresController)));
 router.put('/scores/:id', ...authed, requireReviewer(), asyncHandler(scoresController.update.bind(scoresController)));
 router.delete('/scores/:id', ...authed, requireAdmin(), asyncHandler(scoresController.remove.bind(scoresController)));
+
+/**
+ * @swagger
+ * /api/analytics/sessions/{id}:
+ *   get:
+ *     tags: [Analytics]
+ *     security: [{ bearerAuth: [] }]
+ *     summary: Session analytics summary (admin)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Session analytics summary
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SessionAnalyticsSummary'
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: Not found }
+ */
+router.get(
+  '/analytics/sessions/:id',
+  ...authed,
+  requireAdmin(),
+  asyncHandler(analyticsController.getSessionSummary.bind(analyticsController))
+);
+
+/**
+ * @swagger
+ * /api/analytics/sessions/{id}/employees:
+ *   get:
+ *     tags: [Analytics]
+ *     security: [{ bearerAuth: [] }]
+ *     summary: Session analytics by employee (admin, paginated)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - $ref: '#/components/parameters/LimitParam'
+ *       - $ref: '#/components/parameters/OffsetParam'
+ *     responses:
+ *       200:
+ *         description: Paginated employee analytics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 items:
+ *                   type: array
+ *                   items: { $ref: '#/components/schemas/SessionEmployeeAnalyticsRow' }
+ *                 total: { type: integer }
+ */
+router.get(
+  '/analytics/sessions/:id/employees',
+  ...authed,
+  requireAdmin(),
+  asyncHandler(analyticsController.listSessionEmployees.bind(analyticsController))
+);
+
+/**
+ * @swagger
+ * /api/analytics/sessions/{id}/reviewers:
+ *   get:
+ *     tags: [Analytics]
+ *     security: [{ bearerAuth: [] }]
+ *     summary: Session analytics by reviewer (admin, paginated)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - $ref: '#/components/parameters/LimitParam'
+ *       - $ref: '#/components/parameters/OffsetParam'
+ *     responses:
+ *       200:
+ *         description: Paginated reviewer analytics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 items:
+ *                   type: array
+ *                   items: { $ref: '#/components/schemas/SessionReviewerAnalyticsRow' }
+ *                 total: { type: integer }
+ */
+router.get(
+  '/analytics/sessions/:id/reviewers',
+  ...authed,
+  requireAdmin(),
+  asyncHandler(analyticsController.listSessionReviewers.bind(analyticsController))
+);
+
+/**
+ * @swagger
+ * /api/analytics/sessions/{id}/export.csv:
+ *   get:
+ *     tags: [Analytics]
+ *     security: [{ bearerAuth: [] }]
+ *     summary: Export a session report as CSV (admin)
+ *     description: Returns text/csv. Use this for downloading session-level analytics/export.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: CSV file
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ */
+router.get(
+  '/analytics/sessions/:id/export.csv',
+  ...authed,
+  requireAdmin(),
+  asyncHandler(analyticsController.exportSessionCsv.bind(analyticsController))
+);
+
+/**
+ * @swagger
+ * /api/analytics/employees/export.csv:
+ *   get:
+ *     tags: [Analytics]
+ *     security: [{ bearerAuth: [] }]
+ *     summary: Export employees report as CSV (admin)
+ *     description: Returns text/csv. Optional filter by session_id.
+ *     parameters:
+ *       - in: query
+ *         name: session_id
+ *         required: false
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: CSV file
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ */
+router.get(
+  '/analytics/employees/export.csv',
+  ...authed,
+  requireAdmin(),
+  asyncHandler(analyticsController.exportEmployeesCsv.bind(analyticsController))
+);
 
 module.exports = router;

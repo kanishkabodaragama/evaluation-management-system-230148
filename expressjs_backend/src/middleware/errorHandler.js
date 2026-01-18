@@ -7,8 +7,7 @@ const { ApiError } = require('../utils/errors');
  */
 function errorHandler(err, req, res, next) {
   // keep signature (err, req, res, next) for Express even if `next` unused
-  // eslint-disable-next-line no-unused-vars
-  const _ = next;
+  void next;
 
   const isApiError = err instanceof ApiError;
 

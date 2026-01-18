@@ -16,6 +16,7 @@ const options = {
       { name: 'Assignments', description: 'Session reviewer assignments' },
       { name: 'Submissions', description: 'Reviewer submissions' },
       { name: 'Scores', description: 'Per-criterion scores for submissions' },
+      { name: 'Analytics', description: 'Admin-only analytics + CSV exports' },
     ],
     components: {
       securitySchemes: {
