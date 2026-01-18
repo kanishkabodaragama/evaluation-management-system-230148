@@ -4,10 +4,19 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'My Express API',
+      title: 'Evaluation Management API',
       version: '1.0.0',
-      description: 'A simple Express API documented with Swagger',
+      description:
+        'REST API for structured intern/employee evaluations (sessions, criteria, assignments, submissions, scores).',
     },
+    tags: [
+      { name: 'Employees', description: 'Employee directory (admin-managed)' },
+      { name: 'Criteria', description: 'Evaluation criteria (admin-managed)' },
+      { name: 'Sessions', description: 'Review sessions (admin-managed)' },
+      { name: 'Assignments', description: 'Session reviewer assignments' },
+      { name: 'Submissions', description: 'Reviewer submissions' },
+      { name: 'Scores', description: 'Per-criterion scores for submissions' },
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -19,7 +28,7 @@ const options = {
       },
     },
   },
-  apis: ['./src/routes/*.js'], // Path to the API docs
+  apis: ['./src/routes/*.js'], // includes src/routes/api.js
 };
 
 const swaggerSpec = swaggerJSDoc(options);

@@ -6,13 +6,13 @@ const { ApiError } = require('../utils/errors');
  * Formats ApiError consistently; hides internal errors.
  */
 function errorHandler(err, req, res, next) {
+  // keep signature (err, req, res, next) for Express even if `next` unused
   // eslint-disable-next-line no-unused-vars
-  const _next = next;
+  const _ = next;
 
   const isApiError = err instanceof ApiError;
 
   if (!isApiError) {
-    // eslint-disable-next-line no-console
     console.error(err);
   }
 

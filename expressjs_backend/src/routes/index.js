@@ -2,6 +2,7 @@ const express = require('express');
 const healthController = require('../controllers/health');
 const authController = require('../controllers/auth');
 const { requireAuth } = require('../middleware/auth');
+const apiRoutes = require('./api');
 
 const router = express.Router();
 
@@ -58,5 +59,8 @@ router.get('/health/db', healthController.checkWithDb.bind(healthController));
  *         description: Missing/invalid token
  */
 router.get('/me', requireAuth(), authController.me.bind(authController));
+
+// Mount REST API under /api
+router.use('/api', apiRoutes);
 
 module.exports = router;

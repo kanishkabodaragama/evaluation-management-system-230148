@@ -44,9 +44,71 @@ class ForbiddenError extends ApiError {
   }
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * 404 Not Found error.
+ */
+class NotFoundError extends ApiError {
+  constructor(message, details) {
+    super(404, 'not_found', message || 'Not found', details);
+  }
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * 409 Conflict error (unique constraints, state conflicts, etc.)
+ */
+class ConflictError extends ApiError {
+  constructor(message, details) {
+    super(409, 'conflict', message || 'Conflict', details);
+  }
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * Convert a Postgres error into an ApiError when possible.
+ * Keeps controller/service code unit-friendly and consistent.
+ * @param {any} err
+ * @param {{ uniqueMessage?: string, fkMessage?: string }} [messages]
+ * @returns {ApiError|null}
+ */
+function mapPostgresError(err, messages = {}) {
+  // pg error codes: https://www.postgresql.org/docs/current/errcodes-appendix.html
+  const code = err?.code;
+
+  // unique_violation
+  if (code === '23505') {
+    return new ConflictError(messages.uniqueMessage || 'Resource already exists', {
+      constraint: err.constraint,
+      detail: err.detail,
+    });
+  }
+
+  // foreign_key_violation
+  if (code === '23503') {
+    return new ConflictError(messages.fkMessage || 'Foreign key constraint failed', {
+      constraint: err.constraint,
+      detail: err.detail,
+    });
+  }
+
+  // check_violation
+  if (code === '23514') {
+    return new BadRequestError('Validation failed', {
+      constraint: err.constraint,
+      detail: err.detail,
+    });
+  }
+
+  return null;
+}
+
 module.exports = {
   ApiError,
   BadRequestError,
   UnauthorizedError,
   ForbiddenError,
+  NotFoundError,
+  ConflictError,
+  mapPostgresError,
 };
